@@ -25,7 +25,7 @@ class MtEnv(gym.Env):
 
     def __init__(
             self, original_simulator: MtSimulator, trading_symbols: List[str],
-            window_size: int, time_points: Optional[List[datetime]]=None,
+            window_size: int, future_size: int, time_points: Optional[List[datetime]]=None,
             hold_threshold: float=0.5, close_threshold: float=0.5,
             fee: Union[float, Callable[[str], float]]=0.0005,
             symbol_max_orders: int=1, multiprocessing_processes: Optional[int]=None
@@ -47,7 +47,7 @@ class MtEnv(gym.Env):
                    f"unit symbol for '{currency_profit}' not found"
 
         if time_points is None:
-            time_points = original_simulator.symbols_data[trading_symbols[0]].index.to_pydatetime().tolist()
+            time_points = original_simulator.symbols_data[trading_symbols[0]].index.tolist()
         assert len(time_points) > window_size, "not enough time points provided"
 
         # attributes
@@ -55,6 +55,7 @@ class MtEnv(gym.Env):
         self.original_simulator = original_simulator
         self.trading_symbols = trading_symbols
         self.window_size = window_size
+        self.future_size = future_size
         self.time_points = time_points
         self.hold_threshold = hold_threshold
         self.close_threshold = close_threshold
@@ -65,6 +66,7 @@ class MtEnv(gym.Env):
         self.prices = self._get_prices()
         self.signal_features = self._process_data()
         self.features_shape = (window_size, self.signal_features.shape[1])
+        self.futures_shape = (future_size, self.signal_features.shape[1])
 
         # spaces
         self.action_space = spaces.Box(
@@ -78,6 +80,7 @@ class MtEnv(gym.Env):
             'equity': spaces.Box(low=-INF, high=INF, shape=(1,), dtype=np.float64),
             'margin': spaces.Box(low=-INF, high=INF, shape=(1,), dtype=np.float64),
             'features': spaces.Box(low=-INF, high=INF, shape=self.features_shape, dtype=np.float64),
+            'futures': spaces.Box(low=-INF, high=INF, shape=self.futures_shape, dtype=np.float64),
             'orders': spaces.Box(
                 low=-INF, high=INF, dtype=np.float64,
                 shape=(len(self.trading_symbols), self.symbol_max_orders, 3)
@@ -86,7 +89,7 @@ class MtEnv(gym.Env):
 
         # episode
         self._start_tick = self.window_size - 1
-        self._end_tick = len(self.time_points) - 1
+        self._end_tick = len(self.time_points) - self.future_size+1
         self._done: bool = NotImplemented
         self._current_tick: int = NotImplemented
         self.simulator: MtSimulator = NotImplemented
@@ -215,6 +218,7 @@ class MtEnv(gym.Env):
 
     def _get_observation(self) -> Dict[str, np.ndarray]:
         features = self.signal_features[(self._current_tick-self.window_size+1):(self._current_tick+1)]
+        futures = self.signal_features[self._current_tick:(self._current_tick+self.future_size)]
 
         orders = np.zeros(self.observation_space['orders'].shape)
         for i, symbol in enumerate(self.trading_symbols):
@@ -227,6 +231,7 @@ class MtEnv(gym.Env):
             'equity': np.array([self.simulator.equity]),
             'margin': np.array([self.simulator.margin]),
             'features': features,
+            'futures': futures,
             'orders': orders,
         }
         return observation
