@@ -80,7 +80,8 @@ class MtSimulator:
         from_dt, to_dt = time_range
         i=0
         for symbol in symbols:
-            data = pickle.load(dir[i])
+            with open(dir[i], 'rb) as file:
+                data = pickle.load(file)   
             si, df = retrieve_data(symbol, from_dt, to_dt, timeframe)
             self.symbols_info[symbol] = si
             self.symbols_data[symbol] = data
