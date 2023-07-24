@@ -73,6 +73,19 @@ class MtSimulator:
             self.symbols_info, self.symbols_data = pickle.load(file)
         return True
 
+    
+    def load_data(
+            self, dir: List[str], symbols: List[str], time_range: Tuple[datetime, datetime], timeframe: Timeframe
+        ) -> None:
+        from_dt, to_dt = time_range
+        i=0
+        for symbol in symbols:
+            data = pickle.load(dir[i])
+            si, df = retrieve_data(symbol, from_dt, to_dt, timeframe)
+            self.symbols_info[symbol] = si
+            self.symbols_data[symbol] = data
+            i+=1
+
 
     def tick(self, delta_time: timedelta=timedelta()) -> None:
         self._check_current_time()
